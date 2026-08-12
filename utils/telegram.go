@@ -446,6 +446,8 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 			return TgReplyWithErrorByContext(b, c, "Failed to upload image to WhatsApp", err)
 		}
 
+		thumbBytes, _ := GenerateVideoThumbnail(imageBytes)
+
 		msgToSend := &waE2E.Message{
 			ImageMessage: &waE2E.ImageMessage{
 				Caption:           proto.String(formattedText),
@@ -460,6 +462,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 				ViewOnce:          proto.Bool(msgToForward.HasProtectedContent || (msgToForward.HasMediaSpoiler && cfg.Telegram.SpoilerViewOnce)),
 				Height:            proto.Uint32(uint32(bestPhoto.Height)),
 				Width:             proto.Uint32(uint32(bestPhoto.Width)),
+				JPEGThumbnail:     thumbBytes,
 				ContextInfo:       &waE2E.ContextInfo{},
 			},
 		}
@@ -512,6 +515,8 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 			return TgReplyWithErrorByContext(b, c, "Failed to upload video to WhatsApp", err)
 		}
 
+		thumbBytes, _ := GenerateVideoThumbnail(videoBytes)
+
 		msgToSend := &waE2E.Message{
 			VideoMessage: &waE2E.VideoMessage{
 				Caption:       proto.String(formattedText),
@@ -527,6 +532,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 				GifPlayback:   proto.Bool(false),
 				Height:        proto.Uint32(uint32(msgToForward.Video.Height)),
 				Width:         proto.Uint32(uint32(msgToForward.Video.Width)),
+				JPEGThumbnail: thumbBytes,
 				ContextInfo:   &waE2E.ContextInfo{},
 			},
 		}
@@ -578,6 +584,8 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 			return TgReplyWithErrorByContext(b, c, "Failed to upload video note to WhatsApp", err)
 		}
 
+		thumbBytes, _ := GenerateVideoThumbnail(videoBytes)
+
 		msgToSend := &waE2E.Message{
 			PtvMessage: &waE2E.VideoMessage{
 				Caption:       proto.String(formattedText),
@@ -591,6 +599,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 				ViewOnce:      proto.Bool(msgToForward.HasProtectedContent || (msgToForward.HasMediaSpoiler && cfg.Telegram.SpoilerViewOnce)),
 				Seconds:       proto.Uint32(uint32(msgToForward.VideoNote.Duration)),
 				GifPlayback:   proto.Bool(false),
+				JPEGThumbnail: thumbBytes,
 				ContextInfo:   &waE2E.ContextInfo{},
 			},
 		}
@@ -642,6 +651,8 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 			return TgReplyWithErrorByContext(b, c, "Failed to upload animation to WhatsApp", err)
 		}
 
+		thumbBytes, _ := GenerateVideoThumbnail(animationBytes)
+
 		msgToSend := &waE2E.Message{
 			VideoMessage: &waE2E.VideoMessage{
 				Caption:        proto.String(formattedText),
@@ -658,6 +669,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 				Width:          proto.Uint32(uint32(msgToForward.Animation.Width)),
 				Seconds:        proto.Uint32(uint32(msgToForward.Animation.Duration)),
 				GifAttribution: waE2E.VideoMessage_TENOR.Enum(),
+				JPEGThumbnail:  thumbBytes,
 				ContextInfo:    &waE2E.ContextInfo{},
 			},
 		}
@@ -915,21 +927,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 				return TgReplyWithErrorByContext(b, c, "Failed to convert TGS sticker to WebP", err)
 			}
 		} else if msgToForward.Sticker.IsVideo && !cfg.Telegram.SkipVideoStickers {
-
-			var scale, pad string
-
-			if msgToForward.Sticker.Height == 512 && msgToForward.Sticker.Width == 512 {
-				scale = "512:512"
-				pad = "0:0:0:0"
-			} else if msgToForward.Sticker.Height == 512 {
-				scale = "-1:512"
-				pad = fmt.Sprintf("512:512:%v:0", (512-msgToForward.Sticker.Width)/2)
-			} else {
-				scale = "512:-1"
-				pad = fmt.Sprintf("512:512:0:%v", (512-msgToForward.Sticker.Height)/2)
-			}
-
-			stickerBytes, err = WebmConvertToWebp(stickerBytes, scale, pad, c.UpdateId)
+			stickerBytes, err = WebmConvertToWebp(stickerBytes, c.UpdateId)
 			if err != nil {
 				return TgReplyWithErrorByContext(b, c, "Failed to convert WEBM sticker to WEBP sticker", err)
 			}
@@ -962,8 +960,8 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 				MediaKey:      uploadedSticker.MediaKey,
 				IsAnimated:    proto.Bool(msgToForward.Sticker.IsAnimated || msgToForward.Sticker.IsVideo),
 				IsAvatar:      proto.Bool(false),
-				Height:        proto.Uint32(uint32(msgToForward.Sticker.Height)),
-				Width:         proto.Uint32(uint32(msgToForward.Sticker.Width)),
+				Height:        proto.Uint32(512),
+				Width:         proto.Uint32(512),
 				Mimetype:      proto.String("image/webp"),
 				FileEncSHA256: uploadedSticker.FileEncSHA256,
 				FileSHA256:    uploadedSticker.FileSHA256,

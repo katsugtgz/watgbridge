@@ -58,7 +58,12 @@ func ConvertAudioToWhatsAppFormat(audioData []byte, updateId int64) ([]byte, err
 	// -ar 16000: 16kHz sample rate (WhatsApp standard)
 	// -b:a 32k: 32k bitrate (good quality/size balance)
 	// -vbr on: enable Variable Bit Rate for better compression
-	cmd := exec.Command(state.State.Config.FfmpegExecutable,
+	ffmpegExec := state.State.Config.FfmpegExecutable
+	if ffmpegExec == "" {
+		ffmpegExec = "ffmpeg"
+	}
+
+	cmd := exec.Command(ffmpegExec,
 		"-i", inputPath,
 		"-c:a", "libopus",
 		"-ar", "16000",
