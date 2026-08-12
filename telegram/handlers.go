@@ -3,6 +3,7 @@ package telegram
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -759,17 +760,35 @@ func JoinInviteLinkHandler(b *gotgbot.Bot, c *ext.Context) error {
 		_, err := utils.TgReplyTextByContext(b, c, usageString, nil, false)
 		return err
 	}
-	inviteLink := args[1]
+	rawInviteLink := args[1]
+	cleanCode := utils.CleanInviteLink(rawInviteLink)
 
 	waClient := state.State.WhatsAppClient
 
-	groupID, err := waClient.JoinGroupWithLink(context.Background(), inviteLink)
+	// Query group info first to retrieve metadata and check if admin approval is required
+	groupInfo, _ := waClient.GetGroupInfoFromLink(context.Background(), cleanCode)
+
+	groupID, err := waClient.JoinGroupWithLink(context.Background(), cleanCode)
 	if err != nil {
+		if errors.Is(err, whatsmeow.ErrInviteLinkRevoked) {
+			return utils.TgReplyWithErrorByContext(b, c, "The invite link has been revoked", err)
+		} else if errors.Is(err, whatsmeow.ErrInviteLinkInvalid) {
+			return utils.TgReplyWithErrorByContext(b, c, "The invite link is invalid or malformed", err)
+		}
 		return utils.TgReplyWithErrorByContext(b, c, "Failed to join", err)
 	}
 
-	_, err = utils.TgReplyTextByContext(b, c,
-		fmt.Sprintf("Joined a new group with ID: <code>%s</code>", groupID.String()), nil, false)
+	var groupName string
+	if groupInfo != nil && groupInfo.Name != "" {
+		groupName = fmt.Sprintf(" (%s)", html.EscapeString(groupInfo.Name))
+	}
+
+	msgText := fmt.Sprintf("Joined a new group%s with ID: <code>%s</code>", groupName, groupID.String())
+	if groupInfo != nil && groupInfo.IsJoinApprovalRequired {
+		msgText = fmt.Sprintf("Request submitted to join group%s with ID: <code>%s</code> (Admin approval is required)", groupName, groupID.String())
+	}
+
+	_, err = utils.TgReplyTextByContext(b, c, msgText, nil, false)
 	return err
 }
 

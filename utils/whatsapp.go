@@ -43,6 +43,19 @@ func WaSetStatusMessage(ctx context.Context, waClient *whatsmeow.Client, msg str
 	return waClient.SetStatusMessage(ctx, msg)
 }
 
+func CleanInviteLink(input string) string {
+	input = strings.TrimSpace(input)
+	if idx := strings.Index(input, "chat.whatsapp.com/"); idx != -1 {
+		input = input[idx+len("chat.whatsapp.com/"):]
+	} else if idx := strings.Index(input, "whatsapp.com/"); idx != -1 {
+		input = input[idx+len("whatsapp.com/"):]
+	}
+	if idx := strings.IndexAny(input, "?#"); idx != -1 {
+		input = input[:idx]
+	}
+	return strings.Trim(input, "/")
+}
+
 func WaParseJID(s string) (types.JID, bool) {
 	if s[0] == '+' {
 		s = SubString(s, 1, len(s)-1)
