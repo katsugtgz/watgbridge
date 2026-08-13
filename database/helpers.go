@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"watgbridge/state"
@@ -9,9 +10,30 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
+func isSelfJID(participantId string) bool {
+	if state.State.WhatsAppClient == nil || state.State.WhatsAppClient.Store == nil {
+		return false
+	}
+	selfUser := state.State.WhatsAppClient.Store.ID.User
+	if selfUser == "" {
+		return false
+	}
+	parsed, err := types.ParseJID(participantId)
+	if err == nil && parsed.User != "" {
+		return parsed.User == selfUser
+	}
+	user := participantId
+	if idx := strings.IndexAny(user, ":@"); idx != -1 {
+		user = user[:idx]
+	}
+	return user == selfUser
+}
+
 func MsgIdAddNewPair(waMsgId, participantId, waChatId string, tgChatId, tgMsgId, tgThreadId int64) error {
 
 	db := state.State.Database
+
+	isOutgoing := isSelfJID(participantId)
 
 	var bridgePair MsgIdPair
 	res := db.Where("id = ? AND wa_chat_id = ?", waMsgId, waChatId).Find(&bridgePair)
@@ -25,7 +47,7 @@ func MsgIdAddNewPair(waMsgId, participantId, waChatId string, tgChatId, tgMsgId,
 		bridgePair.TgChatId = tgChatId
 		bridgePair.TgMsgId = tgMsgId
 		bridgePair.TgThreadId = tgThreadId
-		bridgePair.MarkRead = sql.NullBool{Valid: true, Bool: false}
+		bridgePair.MarkRead = sql.NullBool{Valid: true, Bool: isOutgoing}
 		res = db.Save(&bridgePair)
 		return res.Error
 	}
@@ -37,7 +59,7 @@ func MsgIdAddNewPair(waMsgId, participantId, waChatId string, tgChatId, tgMsgId,
 		TgChatId:      tgChatId,
 		TgMsgId:       tgMsgId,
 		TgThreadId:    tgThreadId,
-		MarkRead:      sql.NullBool{Valid: true, Bool: false},
+		MarkRead:      sql.NullBool{Valid: true, Bool: isOutgoing},
 	})
 	return res.Error
 }
@@ -88,6 +110,9 @@ func MsgIdGetUnread(waChatId string) (map[string]([]string), error) {
 	var msgIds = make(map[string]([]string))
 
 	for _, pair := range bridgePairs {
+		if isSelfJID(pair.ParticipantId) {
+			continue
+		}
 		if _, found := msgIds[pair.ParticipantId]; !found {
 			msgIds[pair.ParticipantId] = []string{}
 		}
