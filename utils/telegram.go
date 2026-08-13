@@ -1183,6 +1183,12 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 
 		for sender, msgIds := range unreadMsgs {
 			senderJID, _ := WaParseJID(sender)
+			if waClient != nil && waClient.Store != nil && waClient.Store.ID.User != "" && senderJID.User == waClient.Store.ID.User {
+				for _, msgId := range msgIds {
+					database.MsgIdMarkRead(waChatJID.String(), msgId)
+				}
+				continue
+			}
 			err := waClient.MarkRead(context.Background(), msgIds, time.Now(), waChatJID, senderJID)
 			if err != nil {
 				logger.Warn(
